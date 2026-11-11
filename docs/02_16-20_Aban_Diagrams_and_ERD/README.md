@@ -1,5 +1,3 @@
-<div dir="rtl">
-
 # فاز دوم (۱۶ تا ۲۰ آبان): چهار نمای اصلی طراحی و معماری (Four Design Views)
 
 **نام پروژه:** سیم‌فست (SimFast) — سامانه خرید شماره مجازی و دریافت بلادرنگ کد فعال‌سازی  
@@ -9,7 +7,7 @@
 
 ## ۱. دیاگرام مورد کاربرد (UML Use Case Diagram)
 
-این دیاگرام تعامل کاربران و سیستم‌های بیرونی را با هسته سامانه سیم‌فست در مرز MVP نشان می‌دهد.
+این دیاگرام تعامل کاربران و سیستم‌های بیرونی را با هسته سامانه سیم‌فست در مرز MVP نشان می‌دهد:
 
 ```mermaid
 flowchart LR
@@ -41,10 +39,16 @@ flowchart LR
     UC4 <--> Provider
     UC5 <--> Provider
     UC6 <--> Provider
+```
 
+---
 
+## ۲. دیاگرام فعالیت (UML Activity Diagram)
 
-    flowchart TD
+این دیاگرام فرآیند اصلی کسب‌وکار (**خرید شماره و دریافت پیامک فعال‌سازی**) را همراه با انشعاب‌های اعتبارسنجی، مسیرهای خطا و سناریوی جایگزین بازگشت وجه نشان می‌دهد:
+
+```mermaid
+flowchart TD
     Start(["شروع: انتخاب سرویس و کشور توسط کاربر و فشردن دکمه خرید"]) --> CheckAuth{"آیا کاربر وارد شده است؟"}
     
     CheckAuth -- "خیر" --> ErrAuth["خطای 401: عدم احراز هویت و نمایش صفحه ورود"]
@@ -72,10 +76,16 @@ flowchart LR
     PollLoop -- "لغو توسط کاربر یا اتمام ۱۵ دقیقه (مسیر جایگزین)" --> RefundFunds["بازگرداندن کامل مبلغ به موجودی آزاد (ثبت تراکنش REFUND)"]
     RefundFunds --> CancelOrder["تغییر وضعیت سفارش به CANCELED یا TIMEOUT"]
     CancelOrder --> EndCancel(["پایان با عودت وجه"])
+```
 
+---
 
+## ۳. دیاگرام معماری سیستم (System Architecture Diagram)
 
-    flowchart LR
+معماری سامانه بر پایه الگوی **Modular Monolith** پیاده‌سازی می‌شود:
+
+```mermaid
+flowchart LR
     subgraph Client ["لایه رابط کاربری (Frontend)"]
         UI["قالب‌های Jinja2 + TailwindCSS + کامپوننت‌های تعاملی"]
         APIClient["ماژول تبادل داده جاوااسکریپت (Fetch Client)"]
@@ -109,15 +119,21 @@ flowchart LR
     Repo -- "تراکنش‌های پایگاه داده (ACID Transactions)" --> DB
     Adapter -- "فراخوانی REST API تحت پروتکل امن" --> ExtSMS
     Services -- "تاییدیه و کال‌بک پرداخت" --> ExtPay
+```
 
+---
 
+## ۴. مدل داده و دیاگرام موجودیت-رابطه (Entity-Relationship Diagram - ERD)
 
-    erDiagram
-    USER ||--|| WALLET : "مالکیت دارد (1 به 1)"
-    USER ||--o{ ORDER : "ثبت می‌کند (1 به 0..*)"
-    SERVICE_CATALOG ||--o{ ORDER : "تعیین تعرفه (1 به 0..*)"
-    WALLET ||--o{ TRANSACTION : "شامل تراکنش (1 به 0..*)"
-    ORDER |o--o{ TRANSACTION : "ایجاد می‌کند (0..1 به 0..*)"
+این مدل داده روابط موجودیت‌های پایدار، کلیدهای اصلی (`PK`)، کلیدهای خارجی (`FK`) و محدودیت‌های یکپارچگی را مشخص می‌کند:
+
+```mermaid
+erDiagram
+    USER ||--|| WALLET : "owns (1 to 1)"
+    USER ||--o{ ORDER : "places (1 to 0..*)"
+    SERVICE_CATALOG ||--o{ ORDER : "defines pricing for (1 to 0..*)"
+    WALLET ||--o{ TRANSACTION : "records (1 to 0..*)"
+    ORDER |o--o{ TRANSACTION : "triggers (0..1 to 0..*)"
 
     USER {
         int id PK
@@ -166,3 +182,9 @@ flowchart LR
         string tx_type "نوع: DEPOSIT, HOLD, COMMIT, REFUND"
         datetime created_at "زمان ثبت تراکنش"
     }
+```
+
+### شروط جامعیت داده‌ها و قوانین مالکیت (Constraints & Ownership Rules)
+1. **قانون کنترل مالکیت (Ownership Enforcement):** هر رکورد در جدول `ORDER` دارای فیلد غیرتهی `user_id (FK)` است. در کلیه درخواست‌های استعلام وضعیت (`GET /api/orders/{id}`) و لغو سفارش (`POST /api/orders/{id}/cancel`)، سرور تطابق `order.user_id == current_user.id` را اعتبارسنجی می‌کند و در صورت عدم تطابق، خطای `403 Forbidden` برمی‌گرداند.
+2. **شرط عدم منفی شدن موجودی (Non-Negative Balance Constraint):** فیلدهای `available_balance` و `locked_balance` در سطح مدل داده دارای شرط `CHECK (balance >= 0)` هستند تا از خطاهای همزمانی و خرج دوباره (Double-Spending) جلوگیری شود.
+3. **تضمین یکتایی بازگشت وجه (Single Refund Guarantee):** تغییر وضعیت سفارش از حالت انتظار به لغو یا انقضا تنها یک بار ممکن است و از ثبت تراکنش عودت وجه مضاعف به صورت قطعی در تراکنش دیتابیس جلوگیری می‌گردد.
