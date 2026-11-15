@@ -11,7 +11,7 @@
 
 پروتوتایپ سامانه سیم‌فست بر اساس معماری بصری **پوسته ناوبری تیره (Dark Navigation Shell) و محیط کاری روشن (Light Workspace)** طراحی شده است تا مسیر کامل کاربری (End-to-End Business Journey) و حالات خطا را پوشش دهد.
 
-- **لینک پروتوتایپ تعاملی (Figma):** `[لینک اشتراک‌گذاری فیگما را اینجا قرار دهید]`
+- **لینک پروتوتایپ تعاملی (Figma):** - **لینک پروتوتایپ تعاملی (Figma):** [مشاهده پروتوتایپ تعاملی SimFast در Figma](https://www.figma.com/proto/XLRGmmOu4ccgq9SN5UDQXa/SimFast-%E2%80%94-MVP-Prototype?node-id=3-71&p=f&viewport=-52%2C2%2C0.65&t=BMqX3mu7O8dpEvj9-1&scaling=min-zoom&content-scaling=fixed&starting-point-node-id=3%3A71&page-id=0%3A1)
 
 ### صفحات و وضعیت‌های پوشش داده شده در پروتوتایپ:
 1. **صفحه ورود و ثبت‌نام (Authentication Screen):** دریافت شماره موبایل و رمز عبور به همراه نمایش وضعیت خطای عدم اعتبارسنجی (`401`).
