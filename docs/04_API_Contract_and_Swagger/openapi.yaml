@@ -1,0 +1,454 @@
+openapi: 3.0.3
+info:
+  title: SimFast API (سامانه خرید شماره مجازی و دریافت OTP)
+  version: 1.0.0
+  description: |
+    قرارداد رسمی وب‌سرویس‌های سامانه سیم‌فست (SimFast) جهت هماهنگی کامل توابع Frontend (React/TypeScript) و Backend (FastAPI/Pydantic).
+
+servers:
+  - url: http://127.0.0.1:8000
+    description: محیط توسعه محلی (Local Development)
+  - url: https://simfast.ir
+    description: سرور عملیاتی (Production - Azure Europe)
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: توکن JWT دریافتی از اندپوینت لاگین در هدر Authorization ارسال می‌شود.
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error_code, message]
+      properties:
+        error_code:
+          type: string
+          example: "INSUFFICIENT_BALANCE"
+        message:
+          type: string
+          example: "موجودی آزاد کیف پول برای انجام این سفارش کافی نیست."
+
+    AuthRequest:
+      type: object
+      required: [phone_number, password]
+      properties:
+        phone_number:
+          type: string
+          pattern: "^09[0-9]{9}$"
+          example: "09123456789"
+        password:
+          type: string
+          minLength: 6
+          example: "Pass@1234"
+
+    AuthResponse:
+      type: object
+      required: [access_token, token_type, user]
+      properties:
+        access_token:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        token_type:
+          type: string
+          example: "bearer"
+        user:
+          $ref: "#/components/schemas/UserProfile"
+
+    UserProfile:
+      type: object
+      required: [id, phone_number, role, wallet]
+      properties:
+        id:
+          type: integer
+          example: 101
+        phone_number:
+          type: string
+          example: "09123456789"
+        role:
+          type: string
+          enum: [user, admin]
+          example: "user"
+        wallet:
+          $ref: "#/components/schemas/WalletSummary"
+
+    WalletSummary:
+      type: object
+      required: [available_balance, locked_balance, updated_at]
+      properties:
+        available_balance:
+          type: integer
+          format: int64
+          minimum: 0
+          description: موجودی آزاد قابل برداشت یا خرید (به تومان)
+          example: 450000
+        locked_balance:
+          type: integer
+          format: int64
+          minimum: 0
+          description: موجودی بلوکه‌شده برای سفارش‌های در انتظار کد (به تومان)
+          example: 50000
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-11-21T12:30:00Z"
+
+    CatalogItem:
+      type: object
+      required: [id, service_code, service_name, country_code, country_name, operator_name, price_toman, stock_count, success_rate]
+      properties:
+        id:
+          type: integer
+          example: 12
+        service_code:
+          type: string
+          example: "telegram"
+        service_name:
+          type: string
+          example: "تلگرام (Telegram)"
+        country_code:
+          type: string
+          example: "US"
+        country_name:
+          type: string
+          example: "ایالات متحده"
+        operator_name:
+          type: string
+          example: "virtual21"
+        price_toman:
+          type: integer
+          format: int64
+          example: 55000
+        stock_count:
+          type: integer
+          example: 142
+        success_rate:
+          type: number
+          format: float
+          example: 94.5
+
+    TopUpRequest:
+      type: object
+      required: [amount, gateway]
+      properties:
+        amount:
+          type: integer
+          format: int64
+          minimum: 10000
+          description: مبلغ شارژ به تومان
+          example: 200000
+        gateway:
+          type: string
+          enum: [rial, crypto]
+          example: "rial"
+
+    TopUpResponse:
+      type: object
+      required: [payment_id, payment_url, gateway, amount]
+      properties:
+        payment_id:
+          type: string
+          example: "PAY-984321"
+        payment_url:
+          type: string
+          format: uri
+          example: "https://gateway.zibal.ir/start/123456789"
+        gateway:
+          type: string
+          enum: [rial, crypto]
+        amount:
+          type: integer
+          format: int64
+          example: 200000
+
+    CreateOrderRequest:
+      type: object
+      required: [catalog_id]
+      properties:
+        catalog_id:
+          type: integer
+          description: شناسه ردیف انتخاب‌شده از جدول کاتالوگ
+          example: 12
+
+    OrderResponse:
+      type: object
+      required: [id, service_name, country_name, virtual_number, price_toman, status, expires_at, remaining_seconds, created_at]
+      properties:
+        id:
+          type: integer
+          example: 5004
+        service_name:
+          type: string
+          example: "تلگرام (Telegram)"
+        country_name:
+          type: string
+          example: "ایالات متحده"
+        virtual_number:
+          type: string
+          example: "+12025550148"
+        otp_code:
+          type: string
+          nullable: true
+          description: کد پیامک دریافتی (تا زمان دریافت null است)
+          example: "48291"
+        price_toman:
+          type: integer
+          format: int64
+          example: 55000
+        status:
+          type: string
+          enum: [WAITING_FOR_SMS, RECEIVED, CANCELED, TIMEOUT]
+          example: "WAITING_FOR_SMS"
+        expires_at:
+          type: string
+          format: date-time
+        remaining_seconds:
+          type: integer
+          example: 845
+        created_at:
+          type: string
+          format: date-time
+
+    TransactionItem:
+      type: object
+      required: [id, order_id, amount, tx_type, description, created_at]
+      properties:
+        id:
+          type: integer
+          example: 9012
+        order_id:
+          type: integer
+          nullable: true
+          example: 5004
+        amount:
+          type: integer
+          format: int64
+          example: 55000
+        tx_type:
+          type: string
+          enum: [DEPOSIT, HOLD, COMMIT, REFUND]
+          example: "HOLD"
+        description:
+          type: string
+          example: "بلوکه وجه بابت سفارش #5004 (تلگرام - آمریکا)"
+        created_at:
+          type: string
+          format: date-time
+
+paths:
+  /api/auth/register:
+    post:
+      tags: [Authentication]
+      summary: ثبت‌نام کاربر جدید و ایجاد کیف پول اولیه
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthRequest"
+      responses:
+        "201":
+          description: ثبت‌نام موفق
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "409":
+          description: شماره موبایل تکراری است
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/auth/login:
+    post:
+      tags: [Authentication]
+      summary: ورود به حساب کاربری و دریافت توکن JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthRequest"
+      responses:
+        "200":
+          description: ورود موفق
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: شماره موبایل یا رمز عبور اشتباه است
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/me:
+    get:
+      tags: [User & Wallet]
+      summary: دریافت اطلاعات کاربر لاگین‌شده و موجودی لحظه‌ای کیف پول دو جیب
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: اطلاعات پروفایل و کیف پول
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "401":
+          description: عدم احراز هویت
+
+  /api/catalog:
+    get:
+      tags: [Catalog]
+      summary: دریافت لیست سرویس‌ها، کشورها، موجودی خط و قیمت‌ها
+      parameters:
+        - name: service_code
+          in: query
+          required: false
+          schema:
+            type: string
+            example: "telegram"
+      responses:
+        "200":
+          description: لیست تعرفه‌های فعال
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CatalogItem"
+
+  /api/wallet/topup:
+    post:
+      tags: [User & Wallet]
+      summary: ایجاد درخواست شارژ کیف پول (درگاه ریالی یا کریپتو)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TopUpRequest"
+      responses:
+        "200":
+          description: لینک انتقال به درگاه پرداخت ایجاد شد
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TopUpResponse"
+        "400":
+          description: مبلغ نامعتبر
+
+  /api/orders:
+    post:
+      tags: [Orders]
+      summary: خرید شماره مجازی (بلوکه اتمیک وجه HOLD + دریافت شماره از تامین‌کننده)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrderRequest"
+      responses:
+        "201":
+          description: شماره با موفقیت تخصیص یافت و در انتظار پیامک است
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderResponse"
+        "400":
+          description: موجودی آزاد کافی نیست
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: خطای تامین‌کننده در ارائه خط (مبلغ فوراً به موجودی آزاد بازگشت)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/orders/{order_id}:
+    get:
+      tags: [Orders]
+      summary: استعلام لحظه‌ای وضعیت سفارش و کد OTP (Polling)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: وضعیت فعلی سفارش
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderResponse"
+        "403":
+          description: عدم مالکیت سفارش (تلاش برای مشاهده سفارش کاربر دیگر)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: سفارش یافت نشد
+
+  /api/orders/{order_id}/cancel:
+    post:
+      tags: [Orders]
+      summary: لغو سفارش در حال انتظار و بازگشت آنی وجه به موجودی آزاد (REFUND)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: سفارش لغو شد و مبلغ به موجودی آزاد بازگشت
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderResponse"
+        "403":
+          description: عدم مالکیت سفارش
+        "409":
+          description: امکان لغو وجود ندارد (کد پیامک قبلاً دریافت شده یا سفارش بسته شده است)
+
+  /api/my-history:
+    get:
+      tags: [History & Ledger]
+      summary: دریافت تاریخچه سفارش‌ها و دفتر کل تراکنش‌های مالی کاربر جاری
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: تاریخچه کامل کاربر
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [orders, transactions]
+                properties:
+                  orders:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/OrderResponse"
+                  transactions:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/TransactionItem"
